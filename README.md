@@ -10,15 +10,8 @@
 - **Clear**: Deletes a specified number of messages from a channel, helping to keep the chat clean.
 - **Ban**: Bans a user from the server, removing them from the community with a single command.
 - **Kick**: Kicks a user from the server, temporarily removing them and allowing them to rejoin later.
-- **Entertainment**: Provides fun and engaging commands to keep your server lively and interactive.
+- **Mute**: Mutes a user in the server to prevent them from sending messages or speaking.
+- **Roll**: Rolls a dice and returns a number between 1 and 6.
+- **Rock, Paper, Scissors**: Play a game of rock, paper, scissors with the bot.
+- **Guess**: Guess a number between 1 and 10.
 
-## Invite the bot!
-
-https://discord.com/oauth2/authorize?client_id=1282397476954837134&permissions=8&integration_type=0&scope=bot
-
-## Installation
-
-1. **Clone the Repository**
-
-   ```bash
-   git clone https://github.com/yourusername/Moderation-Bot.git
