@@ -15,3 +15,6 @@
 - **Rock, Paper, Scissors**: Play a game of rock, paper, scissors with the bot.
 - **Guess**: Guess a number between 1 and 10.
 
+## Invite the bot to your server!
+
+[Invite Link!](https://discord.com/oauth2/authorize?client_id=1282397476954837134&permissions=8&integration_type=0&scope=bot)
