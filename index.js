@@ -1,14 +1,15 @@
-// bot version 0.0.1
+// bot version 0.0.2, made by mvqna
 require('dotenv').config(); // Add this line at the top to load environment variables
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const { REST } = require('@discordjs/rest'); // Importa REST desde @discordjs/rest
-const { Routes } = require('discord-api-types/v10'); // Importa Routes desde discord-api-types
+const { REST } = require('@discordjs/rest'); // Import REST @discordjs/rest
+const { Routes } = require('discord-api-types/v10'); // Import Routes discord-api-types
 
 const TOKEN = process.env.TOKEN; // Access the token from the environment variable
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 client.commands = new Collection();
+const leaderboard = new Map(); // Leaderboard to track banana sizes
 
 // Define and register commands
 client.commands.set('ping', {
@@ -251,16 +252,66 @@ client.commands.set('clear', {
     }
 });
 
+// I dont really know why i did this...
+client.commands.set('banana', {
+    data: {
+        name: 'banana',
+        description: 'Generates a random banana size and tracks it in a leaderboard.'
+    },
+    execute: async (interaction) => {
+        const random = Math.random();
+        let size;
+
+        // 1/50 chance for 30 cm
+        if (random < 1 / 50) {
+            size = 30;
+        } else {
+            size = Math.floor(Math.random() * (30 - 5)) + 5; // Random size between 5 and 29
+        }
+
+        const userId = interaction.user.id;
+        const username = interaction.user.username;
+
+        // Update leaderboard
+        if (!leaderboard.has(userId)) {
+            leaderboard.set(userId, { username, sizes: [] });
+        }
+        leaderboard.get(userId).sizes.push(size);
+
+        await interaction.reply(`Your banana size is: ${size} cm 🍌`);
+    }
+});
+
+
+client.commands.set('banana-leaderboard', {
+    data: {
+        name: 'banana-leaderboard',
+        description: 'Shows the banana leaderboard.'
+    },
+    execute: async (interaction) => {
+        if (leaderboard.size === 0) {
+            return await interaction.reply('The leaderboard is empty! Be the first to generate a banana size. 🍌');
+        }
+
+        const sortedLeaderboard = [...leaderboard.values()]
+            .sort((a, b) => Math.max(...b.sizes) - Math.max(...a.sizes)) // Sort by highest size
+            .map((entry, index) => `${index + 1}. ${entry.username}: ${Math.max(...entry.sizes)} cm`);
+
+        await interaction.reply(`**Banana Leaderboard:**\n${sortedLeaderboard.join('\n')}`);
+    }
+});
+
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
-    // Define y registra los comandos
+    // Regist Commands
     const commands = client.commands.map(cmd => cmd.data);
     const rest = new REST({ version: '10' }).setToken(TOKEN);
 
     try {
         await rest.put(
-            Routes.applicationCommands(client.user.id), // Asegúrate de que esto corra después de que el cliente esté listo
+            Routes.applicationCommands(client.user.id),
             { body: commands }
         );
         console.log('Successfully registered application commands.');
