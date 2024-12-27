@@ -1,16 +1,27 @@
-// bot version 0.0.2, made by mvqna
-require('dotenv').config(); // Add this line at the top to load environment variables
+// bot version 0.0.3, made by mvqna
+
+require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const { REST } = require('@discordjs/rest'); // Import REST @discordjs/rest
-const { Routes } = require('discord-api-types/v10'); // Import Routes discord-api-types
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } = require('@discordjs/voice');
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v10');
+const TOKEN = process.env.TOKEN;
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates // Add this for voice channel interaction
+    ] 
+});
 
-const TOKEN = process.env.TOKEN; // Access the token from the environment variable
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 client.commands = new Collection();
 const leaderboard = new Map(); // Leaderboard to track banana sizes
-
 // Define and register commands
 client.commands.set('ping', {
     data: {
@@ -138,6 +149,172 @@ client.commands.set('mute', {
         await interaction.reply(`${member} has been muted.`);
     }
 });
+
+
+// Play command for music on youtube
+client.commands.set('play', {
+    data: {
+        name: 'play',
+        description: 'Plays a YouTube video in the voice channel',
+        options: [
+            {
+                name: 'url',
+                type: 3, // STRING type
+                description: 'The YouTube video URL',
+                required: true,
+            },
+        ],
+    },
+    execute: async (interaction) => {
+        const url = interaction.options.getString('url');
+        if (!url) {
+            return interaction.reply({ content: 'Please provide a valid YouTube URL.', ephemeral: true });
+        }
+
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel) {
+            return interaction.reply({ content: 'You must be in a voice channel to use this command.', ephemeral: true });
+        }
+
+        const permissions = voiceChannel.permissionsFor(interaction.client.user);
+        if (!permissions.has('CONNECT') || !permissions.has('SPEAK')) {
+            return interaction.reply({ content: 'I need permissions to join and speak in your voice channel!', ephemeral: true });
+        }
+
+        await interaction.reply({ content: `Now downloading and preparing the music... Please wait!`, ephemeral: true });
+
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: interaction.guild.id,
+            adapterCreator: interaction.guild.voiceAdapterCreator,
+        });
+
+        const player = createAudioPlayer();
+        connection.subscribe(player);
+
+        // Define a temporary file path
+        const tempFilePath = path.join(__dirname, 'temp_audio.mp3');
+
+        // Download the audio to a temporary file using yt-dlp and ffmpeg
+        const ffmpegProcess = exec(
+            `yt-dlp -f bestaudio --extract-audio --audio-format mp3 --quiet -o "${tempFilePath}" ${url}`,
+            (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`exec error: ${error}`);
+                    return interaction.followUp({ content: 'There was an error downloading the audio.', ephemeral: true });
+                }
+
+                if (stderr) {
+                    console.error(`stderr: ${stderr}`);
+                }
+
+                console.log('Download complete');
+            }
+        );
+
+        // When the process finishes, play the audio
+        ffmpegProcess.on('close', (code) => {
+            if (code !== 0) {
+                return interaction.followUp({ content: 'Error downloading the audio.', ephemeral: true });
+            }
+
+            interaction.followUp({ content: `Now playing: ${url}`, ephemeral: true });
+
+            // Create an audio resource from the downloaded file
+            const resource = createAudioResource(tempFilePath, { inputType: 'mp3' });
+            player.play(resource);
+
+            player.on(AudioPlayerStatus.Playing, () => {
+                console.log('Audio is now playing!');
+            });
+
+            player.on('error', (error) => {
+                console.error('Error playing audio:', error);
+                interaction.followUp({ content: 'There was an error playing the audio.', ephemeral: true });
+            });
+
+            // Wait for the player to become idle, then kill ffmpeg and clean up
+            player.on(AudioPlayerStatus.Idle, () => {
+                console.log('Playback finished. Cleaning up...');
+
+                // Kill the ffmpeg process if it's still running
+                if (!ffmpegProcess.killed) {
+                    ffmpegProcess.kill();
+                }
+
+                // Delete the temporary file after the ffmpeg process is killed
+                fs.unlink(tempFilePath, (err) => {
+                    if (err) {
+                        console.error('Error deleting temporary audio file:', err);
+                    } else {
+                        console.log('Temporary audio file deleted.');
+                    }
+                });
+            });
+        });
+    },
+});
+
+
+// Stop command to stop playing music and leave the channel
+client.commands.set('stop', {
+    data: {
+        name: 'stop',
+        description: 'Stops the music and leaves the voice channel',
+    },
+    execute: async (interaction) => {
+        const connection = getVoiceConnection(interaction.guild.id);
+        if (!connection) {
+            return interaction.reply({ content: 'I am not currently in a voice channel!', ephemeral: true });
+        }
+
+        const tempFilePath = path.join(__dirname, 'temp_audio.mp3');
+
+        // Kill the ffmpeg process if it is running
+        exec('tasklist', (err, stdout, stderr) => {
+            if (err) {
+                console.error('Error listing processes:', err);
+                return;
+            }
+
+            if (stdout.toLowerCase().includes('ffmpeg.exe')) {
+                exec('taskkill /IM ffmpeg.exe /F', (killErr) => {
+                    if (killErr) {
+                        console.error('Error killing ffmpeg process:', killErr);
+                    } else {
+                        console.log('ffmpeg process killed successfully.');
+                    }
+
+                    // Now that ffmpeg is killed, delete the temporary audio file
+                    fs.unlink(tempFilePath, (err) => {
+                        if (err) {
+                            console.error('Error deleting temporary audio file:', err);
+                        } else {
+                            console.log('Temporary audio file deleted.');
+                        }
+                    });
+                });
+            } else {
+                console.log('No ffmpeg process found.');
+                // If ffmpeg isn't running, directly delete the temporary audio file
+                fs.unlink(tempFilePath, (err) => {
+                    if (err) {
+                        console.error('Error deleting temporary audio file:', err);
+                    } else {
+                        console.log('Temporary audio file deleted.');
+                    }
+                });
+            }
+        });
+
+        // Stop the player and leave the voice channel
+        connection.destroy();
+        return interaction.reply({ content: 'Stopped the music and left the channel.', ephemeral: true });
+    },
+});
+
+
+
 
 client.commands.set('roll', {
     data: {
