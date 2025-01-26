@@ -128,7 +128,7 @@ client.commands.set('mute', {
         }
 
         const member = interaction.options.getMember('user');
-        const reason = interaction.options.getString('reason') || 'No reason provided';
+        const reason = interaction.options.getString('reason') || 'No reasson provided';
         let muteRole = interaction.guild.roles.cache.find(role => role.name === 'Muted');
 
         if (!muteRole) {
