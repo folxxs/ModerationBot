@@ -19,4 +19,8 @@
 - **Stop**: Stop playing music in a voice chat
 ## Invite the bot to your server!
 
+## Requirements
+In the code.
+You will need FFMPEG to the play command work
+
 [Click me to Invite the bot to your server!](https://discord.com/oauth2/authorize?client_id=1282397476954837134&permissions=8&integration_type=0&scope=bot)
